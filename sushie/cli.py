@@ -12,9 +12,8 @@ from importlib import metadata
 from typing import Callable, List, Optional, Tuple
 
 import pandas as pd
-from scipy.stats import norm
-
 from jax import config, random
+from scipy.stats import norm
 
 from . import infer, infer_ss, io, log, utils
 
@@ -1689,7 +1688,6 @@ def process_raw_ss(
         ]
 
         for idx in range(n_pop):
-
             gwas_list.append(jnp.array(df_gwas[f"z_{idx + 1}"].values))
             _, _, tmp_geno, _, _ = ld_geno_list[idx]
             tmp_geno = tmp_geno[:, snps_bim["SNPIndex"].values]
@@ -2791,48 +2789,6 @@ def build_finemap_parser(subp):
     )
 
     return finemap
-
-
-def _get_command_string(args):
-    base = f"sushie {args[0]}{os.linesep}"
-    rest = args[1:]
-    rest_strs = []
-    needs_tab = True
-    lead_prompt = None
-    for cmd in rest:
-        if "-" == cmd[0]:
-            lead_prompt = cmd
-            if cmd in [
-                "--quiet",
-                "--verbose",
-                "--compress",
-                "--numpy",
-                "--no-scale",
-                "--no-regress",
-                "--no-update",
-                "--meta",
-                "--mega",
-                "--her",
-                "--cv",
-                "--alphas",
-                "--rint",
-                "--keep-ambiguous",
-                "--summary",
-            ]:
-                rest_strs.append(f"\t{cmd}{os.linesep}")
-                needs_tab = True
-            else:
-                rest_strs.append(f"\t{cmd}")
-                needs_tab = False
-        else:
-            if needs_tab:
-                rest_strs.append(f"\t{' '*len(lead_prompt)} {cmd}{os.linesep}")
-                needs_tab = True
-            else:
-                rest_strs.append(f" {cmd}{os.linesep}")
-                needs_tab = True
-
-    return base + "".join(rest_strs) + os.linesep
 
 
 def _main(argsv):
