@@ -1,13 +1,13 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
 
 [project]
 name = "sushie"
-dynamic = ["version"]
 description = "SNP fine-mapping of molecular data across ancestries using SuShiE"
 readme = "README.md"
 license = "MIT"
+version = "0.20.0"
 requires-python = ">=3.10,<3.12"
 authors = [
   { name = "Zeyun Lu", email = "zeyun_lu@dfci.harvard.edu" },
@@ -29,10 +29,11 @@ dependencies = [
   "pyarrow>=23.0.1",
   "scipy==1.10",
   "typer>=0.24.1",
+  "loguru>=0.7.3",
 ]
 
 [project.scripts]
-sushie = "sushie.cli:main"
+sushie = "sushie:main"
 
 [tool.pytest]
 addpots = "--cov sushie --cov-report term-missing --verbose"
@@ -47,8 +48,6 @@ Tracker = "https://github.com/mancusolab/sushie/issues"
 [tool.hatch.version]
 source = "vcs"
 
-[tool.hatch.build.hooks.vcs]
-version-file = "sushie/_version.py"
 
 [tool.hatch.build.targets.sdist]
 include = ["/sushie"]
