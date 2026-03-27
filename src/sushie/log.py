@@ -1,9 +1,23 @@
 """Logging module for sushie."""
 
-import logging
+from loguru import logger
 
-logger = logging.getLogger("sushie")
-logger.setLevel(logging.INFO)
+# Remove default handler to avoid duplicate output
+logger.remove()
 
-# Prevent propagating to root logger
-logger.propagate = False
+# Add stderr handler with sushie format
+logger.add(
+    "stderr",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    level="INFO",
+    colorize=True,
+)
+
+# Add file handler for disk logs
+logger.add(
+    "logs/sushie_{time:YYYY-MM-DD}.log",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message}",
+    level="INFO",
+    rotation="1 week",
+    compression="gz",
+)

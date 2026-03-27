@@ -1,6 +1,6 @@
 """Main entrypoint for the package."""
 
-import logging
+import logging  # keep for filter
 from argparse import Namespace
 from enum import Enum
 from logging import LogRecord
@@ -124,7 +124,7 @@ def finemap(
     ctx: Context = None,  # type: ignore
 ) -> None:
     """Run the Typer finemap command."""
-    logging.info("Running finemap")
+    log.logger.info("Running finemap")
     # Get context from function parameter injection
     # Context is automatically injected by Typer when used as function parameter
     if ctx is not None:

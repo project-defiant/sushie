@@ -1,5 +1,6 @@
 import argparse
-import logging
+
+# import logging - using loguru
 import os
 import sys
 import warnings
@@ -8,6 +9,7 @@ from importlib import metadata
 from typing import List, Tuple
 
 import pandas as pd
+from loguru import logger
 
 from . import io, log
 
@@ -511,35 +513,25 @@ def _main(argsv):
     masthead += f"             SuShiE v{version}             " + os.linesep
     masthead += "===================================" + os.linesep
 
-    # setup logging
-    log_format = "[%(asctime)s - %(levelname)s] %(message)s"
-    date_format = "%Y-%m-%d %H:%M:%S"
-
-    if args.verbose:
-        log.logger.setLevel(logging.DEBUG)
-    else:
-        log.logger.setLevel(logging.INFO)
-    fmt = logging.Formatter(fmt=log_format, datefmt=date_format)
-    log.logger.propagate = False
-
+    # setup logging with loguru
     # write to stdout unless quiet is set
     if not args.quiet:
         sys.stdout.write(masthead)
         sys.stdout.write(cmd_str)
         sys.stdout.write("Starting log..." + os.linesep)
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setFormatter(fmt)
-        log.logger.addHandler(stdout_handler)
+        # Loguru is already configured in log.py
 
-    # setup log file, but write PLINK-style command first
-    disk_log_stream = open(f"{args.output}.log", "w")
-    disk_log_stream.write(masthead)
-    disk_log_stream.write(cmd_str)
-    disk_log_stream.write("Starting log..." + os.linesep)
-
-    disk_handler = logging.StreamHandler(disk_log_stream)
-    disk_handler.setFormatter(fmt)
-    log.logger.addHandler(disk_handler)
+    # setup log file
+    log_file = f"{args.output}.log"
+    # Add file handler to loguru
+    loguru_file_handler = logger.add(
+        log_file,
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message}",
+        level="DEBUG" if args.verbose else "INFO",
+        rotation=None,
+        enqueue=True,
+    )
+    # Remove handler when done to avoid multiple handlers on subsequent calls
 
     # launch finemap
     args.func(args)

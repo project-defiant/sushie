@@ -1,7 +1,6 @@
 import jax.numpy as jnp
 import pandas as pd
-from jax import random
-from jax import config
+from jax import config, random
 from pandas_plink import read_plink
 from scipy import stats
 

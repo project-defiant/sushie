@@ -94,3 +94,14 @@ For detailed installation, see `README.md`.
 - **Summary statistics**: TSV/TSV.GZ or Parquet (.parquet) - use `--parquet` flag
 - **LD matrix**: TSV/TSV.GZ (correlation matrix)
 - **Prior weights**: TSV/TSV.GZ (SNP ID + prior probability)
+
+## Logging
+
+- **Framework**: loguru (configured in `src/sushie/log.py`)
+- **Usage**: Import and use `log.logger` for logging
+- **Format**: `{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message}`
+- **Handlers**: stderr (colored) + log file (rotated weekly, compressed)
+
+## Code Style
+
+- **Logging**: Use `log.logger` methods (`debug()`, `info()`, `warning()`, `error()`)
