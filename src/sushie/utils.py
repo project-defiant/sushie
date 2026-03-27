@@ -1,14 +1,13 @@
 from typing import List, Optional, Tuple
 
-import pandas as pd
-from glimix_core.lmm import LMM
-from numpy_sugar.linalg import economic_qs
-from scipy import stats
-
 import jax.numpy as jnp
 import jax.scipy as jsp
+import pandas as pd
+from glimix_core.lmm import LMM
 from jax import Array
 from jax.typing import ArrayLike
+from numpy_sugar.linalg import economic_qs
+from scipy import stats
 
 __all__ = [
     "make_pip",
@@ -45,7 +44,6 @@ def make_pip(alpha: ArrayLike) -> Array:
         :py:obj:`Array`: :math:`p \\times 1` vector for the posterior inclusion probability.
 
     """
-
     pip = -jnp.expm1(jnp.sum(jnp.log1p(-alpha), axis=0))
 
     return pip
@@ -61,7 +59,6 @@ def rint(y_val: ArrayLike) -> Array:
         :py:obj:`Array`: A array of transformed value.
 
     """
-
     n_pt = y_val.shape[0]
     r_y = stats.rankdata(y_val)
     q_y = stats.norm.ppf(r_y / (n_pt + 1))
@@ -84,7 +81,6 @@ def ols(X: ArrayLike, y: ArrayLike) -> Tuple[Array, Array, Array]:
             #. :math:`p` values (:py:obj:`Array`) for the coefficients.
 
     """
-
     X_inter = jnp.append(jnp.ones((X.shape[0], 1)), X, axis=1)
     y = jnp.reshape(y, (len(y), -1))
     q_matrix, r_matrix = jnp.linalg.qr(X_inter, mode="reduced")
@@ -128,7 +124,6 @@ def regress_covar(
             #. phenotype residual vector (:py:obj:`Array`) after regressing out covariates effects.
 
     """
-
     y, _, _ = ols(covar, y)
     if not no_regress:
         X, _, _ = ols(covar, X)

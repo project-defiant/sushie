@@ -1,10 +1,9 @@
+import jax.numpy as jnp
 import pandas as pd
+from jax import random
+from jax import config
 from pandas_plink import read_plink
 from scipy import stats
-
-import jax.numpy as jnp
-from jax import random
-from jax.config import config
 
 # set key
 rng_key = random.PRNGKey(1234)
@@ -125,11 +124,7 @@ bvec = random.multivariate_normal(rng_key, jnp.zeros((n_pop,)), b_covar, shape=(
 rng_key, gamma_key = random.split(rng_key, 2)
 gamma = random.choice(gamma_key, snps.shape[0], shape=(L,), replace=False)
 
-print(
-    snps.iloc[
-        gamma,
-    ][["chrom", "snp", "a0", "a1"]]
-)
+print(snps.iloc[gamma,][["chrom", "snp", "a0", "a1"]])
 #    chrom         snp a0 a1
 # 31     1  rs10914958  G  A
 # 72     1   rs1886340  G  A
@@ -179,6 +174,10 @@ for idx in range(n_pop):
     pd.concat(
         [snps[["chrom", "snp", "pos", "a0", "a1"]], all_gwas[idx]], axis=1
     ).to_csv(f"./{pop[idx]}.gwas", index=False, header=True, sep="\t")
+    # Also create parquet version for testing
+    pd.concat(
+        [snps[["chrom", "snp", "pos", "a0", "a1"]], all_gwas[idx]], axis=1
+    ).to_parquet(f"./{pop[idx]}.gwas.parquet", index=False)
 
 # create keep.subject file, randomly 1500 from 1609 individuals
 rng_key, pt_key = random.split(rng_key, 2)

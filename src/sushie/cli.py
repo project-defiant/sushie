@@ -1,17 +1,15 @@
 import argparse
-import copy
 import logging
 import os
 import sys
 import warnings
+from collections.abc import Callable
 from importlib import metadata
+from typing import List, Tuple
 
 import pandas as pd
-from jax import config, random
-from scipy.stats import norm
 
-from . import infer, infer_ss, io, log, utils
-from collections.abc import Callable
+from . import io, log
 
 # Filter ABSL and JAX warnings that clutter output (must be before JAX import)
 warnings.filterwarnings("ignore", module="absl")
@@ -19,9 +17,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="jax")
 import jax.numpy as jnp  # noqa: E402
 
 
-def parameter_check() -> tuple[
-    int, pd.DataFrame, list[str], pd.DataFrame, list[str], Callable
-]:
+def parameter_check(
+    args: argparse.Namespace,
+) -> tuple[int, pd.DataFrame, list[str], pd.DataFrame, list[str], Callable]:
     """The function to process raw phenotype, genotype, covariates data across ancestries fine-mapping.
 
     Args:
@@ -104,11 +102,10 @@ def parameter_check() -> tuple[
                 raise ValueError(
                     "Multiple plink files are detected. Expectation is one when --ancestry-index is specified."
                 )
-        else:
-            if len(args.plink) != n_pop:
-                raise ValueError(
-                    "The numbers of ancestries in plink geno and pheno data does not match. Check the source."
-                )
+        elif len(args.plink) != n_pop:
+            raise ValueError(
+                "The numbers of ancestries in plink geno and pheno data does not match. Check the source."
+            )
 
         log.logger.info(
             f"Detect genotype data in plink format for {n_pop} {name_ancestry}."
@@ -121,11 +118,10 @@ def parameter_check() -> tuple[
                 raise ValueError(
                     "Multiple vcf files are detected. Expectation is one when --ancestry-index is specified."
                 )
-        else:
-            if len(args.vcf) != n_pop:
-                raise ValueError(
-                    "The numbers of ancestries in vcf geno and pheno data does not match. Check the source."
-                )
+        elif len(args.vcf) != n_pop:
+            raise ValueError(
+                "The numbers of ancestries in vcf geno and pheno data does not match. Check the source."
+            )
         log.logger.info(
             f"Detect genotype data in vcf format for {n_pop} {name_ancestry}."
         )
@@ -137,11 +133,10 @@ def parameter_check() -> tuple[
                 raise ValueError(
                     "Multiple bgen files are detected. Expectation is one when --ancestry-index is specified."
                 )
-        else:
-            if len(args.bgen) != n_pop:
-                raise ValueError(
-                    "The numbers of ancestries in bgen geno and pheno data does not match. Check the source."
-                )
+        elif len(args.bgen) != n_pop:
+            raise ValueError(
+                "The numbers of ancestries in bgen geno and pheno data does not match. Check the source."
+            )
 
         log.logger.info(
             f"Detect genotype data in bgen format for {n_pop} {name_ancestry}."
@@ -160,7 +155,8 @@ def parameter_check() -> tuple[
                     "Multiple covariates files are detected. Expectation is one when --ancestry-index is specified."
                 )
         else:
-            if len(args.covar) != n_pop:
+            print(f"DEBUG: covar={args.covar}, type={type(args.covar)}")
+            if args.covar is not None and len(args.covar) != n_pop:
                 raise ValueError(
                     "The number of covariates data does not match geno data."
                 )

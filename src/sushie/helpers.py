@@ -1,4 +1,17 @@
-import io
+import argparse
+import copy
+from collections.abc import Callable
+from typing import List, Tuple
+
+import jax.numpy as jnp
+import pandas as pd
+from jax import config
+from scipy.stats import norm
+
+from sushie import infer, infer_ss, io, log, utils
+
+# Import parameter_check and parameter_check_ss from cli module
+# to avoid circular dependency, import inside functions that use them
 
 
 def _keep_file_subjects(
@@ -413,8 +426,8 @@ def process_raw(
 ) -> Tuple[
     pd.DataFrame,
     io.CleanData,
-    Optional[io.CleanData],
-    Optional[List[io.CVData]],
+    io.CleanData | None,
+    List[io.CVData] | None,
 ]:
     """The function to process raw phenotype, genotype, covariates data across ancestries.
 
@@ -444,7 +457,6 @@ def process_raw(
             #. dataset for cross-validation (:py:obj:`Optional[List[io.CVData]]`).
 
     """
-
     n_pop = len(rawData)
 
     for idx in range(n_pop):
@@ -755,7 +767,6 @@ def process_raw_ss(
             #. dataset for running summary-level SuShiE (:py:obj:`io.ssData`),
 
     """
-
     n_pop = len(geno_path)
 
     ld_geno_list = []
@@ -764,9 +775,14 @@ def process_raw_ss(
         # read in GWAS data
         log.logger.debug(f"Read in GWAS data for ancestry {idx + 1}.")
 
-        df_gwas = io.read_gwas(
-            args.gwas[idx], args.gwas_header, args.chrom, args.start, args.end
-        )
+        if args.parquet:
+            df_gwas = io.read_gwas_parquet(
+                args.gwas[idx], args.gwas_header, args.chrom, args.start, args.end
+            )
+        else:
+            df_gwas = io.read_gwas(
+                args.gwas[idx], args.gwas_header, args.chrom, args.start, args.end
+            )
 
         df_gwas = df_gwas.rename(
             columns={
@@ -823,7 +839,7 @@ def process_raw_ss(
             # make sure the diagonal of the LD matrix is 1
             # and add a small value to the diagonal to avoid singular matrix
             # default is 0
-            df_ld.values[jnp.diag_indices_from(df_ld.values)] += args.ld_adjust
+            arr_ld = jnp.array(df_ld.values); arr_ld = arr_ld.at[jnp.diag_indices_from(arr_ld)].set(arr_ld[jnp.diag_indices_from(arr_ld)] + args.ld_adjust); df_ld = pd.DataFrame(arr_ld, index=df_ld.index, columns=df_ld.columns)
 
             ld_geno_list.append(df_ld)
         else:
@@ -1237,7 +1253,7 @@ def process_raw_ss(
 
 def sushie_wrapper(
     data: io.CleanData,
-    cv_data: Optional[List[io.CVData]],
+    cv_data: List[io.CVData] | None,
     args: argparse.Namespace,
     snps: pd.DataFrame,
     meta: bool = False,
@@ -1254,7 +1270,6 @@ def sushie_wrapper(
         mega: The indicator whether to prepare datasets for mega SuShiE.
 
     """
-
     n_pop = len(data.geno)
 
     if meta:
@@ -1405,8 +1420,6 @@ def sushie_wrapper(
             sample_size = jnp.squeeze(tmp_result.sample_size)
             io.output_cv(cv_res, sample_size, output, args.trait, args.compress)
 
-    return None
-
 
 def sushie_wrapper_ss(
     data: io.ssData,
@@ -1423,7 +1436,6 @@ def sushie_wrapper_ss(
         meta: The indicator whether to prepare datasets for meta SuShiE.
 
     """
-
     n_pop = len(data.lds)
 
     if meta:
@@ -1536,8 +1548,6 @@ def sushie_wrapper_ss(
     if not meta:
         io.output_corr(result, output, args.trait, args.compress)
 
-    return None
-
 
 def run_finemap(args):
     """The umbrella function to run SuShiE.
@@ -1546,6 +1556,7 @@ def run_finemap(args):
         args: The command line parameter input.
 
     """
+    from sushie import cli  # Import here to avoid circular dependency
 
     try:
         if args.jax_precision == 64:
@@ -1556,7 +1567,7 @@ def run_finemap(args):
         if args.summary is True:
             log.logger.info("Start fine-mapping using SuShiE on summary-level data.")
 
-            n_pop, pi, geno_path, geno_func, ld_file = parameter_check_ss(args)
+            n_pop, pi, geno_path, geno_func, ld_file = cli.parameter_check_ss(args)
 
             snps, ss_data = process_raw_ss(
                 geno_path,
@@ -1585,7 +1596,7 @@ def run_finemap(args):
                 pi,
                 geno_path,
                 geno_func,
-            ) = parameter_check(args)
+            ) = cli.parameter_check(args)
 
             rawData = io.read_data(
                 n_pop,

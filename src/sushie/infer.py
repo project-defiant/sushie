@@ -3,11 +3,10 @@ from abc import ABCMeta, abstractmethod
 from typing import List, NamedTuple, Tuple
 
 import equinox as eqx
-import pandas as pd
-
 import jax.numpy as jnp
-import jax.scipy.stats as stats
+import pandas as pd
 from jax import Array, lax, nn, random
+from jax.scipy import stats
 from jax.typing import ArrayLike
 
 from . import log, utils

@@ -18,18 +18,18 @@ classifiers = [
   "Programming Language :: Python",
 ]
 dependencies = [
-  "bgen-reader==4.0.8",
-  "cyvcf2==0.30.18",
+  "cyvcf2==0.31.4",
   "equinox==0.10.2",
   "glimix_core==3.1.13",
   "jax==0.4.33",
   "jaxlib==0.4.33",
   "pandas-plink==2.2.9",
-  "pandas>=1.5.0",
+  "pandas>=2.0",
   "pyarrow>=23.0.1",
   "scipy==1.10",
   "typer>=0.24.1",
   "loguru>=0.7.3",
+  "dask[dataframe]==2023.10.0",
 ]
 
 [project.scripts]

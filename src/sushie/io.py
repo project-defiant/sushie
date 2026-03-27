@@ -1,17 +1,32 @@
 import copy
 import warnings
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from collections.abc import Callable
+from typing import List, NamedTuple, Tuple
+from warnings import catch_warnings
 
 import pandas as pd
-
 from jax import Array
 
-with warnings.catch_warnings():
+with catch_warnings():
     warnings.simplefilter("ignore")
-    from pandas_plink import read_plink
-    from cyvcf2 import VCF
-    from bgen_reader import open_bgen
     import jax.numpy as jnp
+    from pandas_plink import read_plink
+
+try:
+    from bgen_reader import open_bgen
+
+    BGENDRER_AVAILABLE = True
+except ImportError:
+    BGENDRER_AVAILABLE = False
+    open_bgen = None
+
+try:
+    from cyvcf2 import VCF
+
+    CYVCF2_AVAILABLE = True
+except ImportError:
+    CYVCF2_AVAILABLE = False
+    VCF = None
 
 from . import infer, log, utils
 
@@ -127,7 +142,6 @@ def read_data(
         :py:obj:`List[RawData]`: A list of Raw data object (:py:obj:`RawData`).
 
     """
-
     index_file = True if ancestry_index.shape[0] != 0 else False
     rawData = []
     for idx in range(n_pop):
@@ -215,7 +229,6 @@ def read_triplet(path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Array]:
             #. genotype matrix (bed; :py:obj:`Array`).
 
     """
-
     bim, fam, bed = read_plink(path, verbose=False)
     bim = bim[["chrom", "snp", "pos", "a0", "a1"]]
     fam = fam[["iid"]]
@@ -226,7 +239,6 @@ def read_triplet(path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Array]:
 
 def read_vcf(path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Array]:
     """Read in genotype data in `vcf <https://en.wikipedia.org/wiki/Variant_Call_Format>`_ format.
-        `cyvcf2 <https://brentp.github.io/cyvcf2/>`_ package is used to read in the vcf file.
         gt_types are used to determine the genotype matrix. It it is UNKNOWN, it will be coded as NA.
 
     Args:
@@ -239,6 +251,11 @@ def read_vcf(path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Array]:
             #. genotype matrix (bed; :py:obj:`Array`).
 
     """
+    if not CYVCF2_AVAILABLE or VCF is None:
+        raise ImportError(
+            "cyvcf2 is required to read VCF files but is not installed. "
+            "Install it with: uv add cyvcf2 or conda install -c conda-forge cyvcf2"
+        )
 
     vcf = VCF(path, gts012=True)
     fam = pd.DataFrame(vcf.samples).rename(columns={0: "iid"})
@@ -271,7 +288,6 @@ def read_bgen(path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Array]:
             #. genotype matrix (bed; :py:obj:`Array`).
 
     """
-
     bgen = open_bgen(path, verbose=False)
     fam = pd.DataFrame(bgen.samples).rename(columns={0: "iid"})
     bim = pd.DataFrame(
@@ -312,14 +328,108 @@ def read_gwas(
         :py:obj:`pd.DataFrame`
 
     """
-
     df_gwas = pd.read_csv(path, sep="\t").dropna()
 
     if not all(col in df_gwas.columns for col in header):
         raise ValueError("The specified GWAS columns are not in the GWAS data.")
 
     df_gwas = (
-        df_gwas[header]
+        df_gwas[list(header)]
+        .rename(
+            columns={
+                header[0]: "chrom",
+                header[1]: "snp",
+                header[2]: "pos",
+                header[3]: "a1",
+                header[4]: "a0",
+                header[5]: "z",
+            }
+        )
+        .replace([jnp.inf, -jnp.inf], jnp.nan, inplace=False)
+        .dropna(inplace=False)
+    )
+
+    df_gwas[["chrom"]] = df_gwas[["chrom"]].astype(int)
+    df_gwas[["pos"]] = df_gwas[["pos"]].astype(int)
+
+    log.logger.debug("Filter GWAS data based on Chrom, Start, and End.")
+    if chrom is not None:
+        old_num = df_gwas.shape[0]
+        df_gwas = df_gwas[df_gwas.chrom == chrom]
+        del_num = old_num - df_gwas.shape[0]
+
+        if df_gwas.shape[0] == 0:
+            raise ValueError(
+                f"No SNPs remain after filtering on chromosome {chrom} for GWAS data from {path}."
+            )
+
+        if del_num != 0:
+            log.logger.debug(
+                f"Drop {del_num} SNPs that are not on chromosome {chrom} for GWAS data from {path}."
+            )
+
+        old_num = df_gwas.shape[0]
+        df_gwas = df_gwas[df_gwas.pos >= start]
+        del_num = old_num - df_gwas.shape[0]
+
+        if df_gwas.shape[0] == 0:
+            raise ValueError(
+                f"No SNPs are located after position {start} on chromosome {chrom} for GWAS data from {path}."
+            )
+
+        if del_num != 0:
+            log.logger.debug(
+                f"Drop {del_num} SNPs that are located before position {start} on chromosome {chrom}."
+                + " for GWAS data from {path}."
+            )
+
+        old_num = df_gwas.shape[0]
+        df_gwas = df_gwas[df_gwas.pos <= end]
+        del_num = old_num - df_gwas.shape[0]
+
+        if df_gwas.shape[0] == 0:
+            raise ValueError(
+                f"No SNPs are located before position {end} on chromosome {chrom} for GWAS data from {path}."
+            )
+
+        if del_num != 0:
+            log.logger.debug(
+                f"Drop {del_num} SNPs that are located after position {end} on chromosome {chrom}."
+                + " for GWAS data from {path}."
+            )
+
+    df_gwas = df_gwas.copy().reset_index(drop=True)
+
+    return df_gwas
+
+
+def read_gwas_parquet(
+    path: str,
+    header: List[str],
+    chrom: utils.IntOrNone,
+    start: utils.IntOrNone,
+    end: utils.IntOrNone,
+) -> pd.DataFrame:
+    """Read in GWAS data in parquet file.
+
+    Args:
+        path: The path for GWAS data (full file name).
+        header: The header for GWAS data.
+        chrom: The chromosome number.
+        start: The start position.
+        end: The end position.
+
+    Returns:
+        :py:obj:`pd.DataFrame`
+
+    """
+    df_gwas = pd.read_parquet(path).dropna()
+
+    if not all(col in df_gwas.columns for col in header):
+        raise ValueError("The specified GWAS columns are not in the GWAS data.")
+
+    df_gwas = (
+        df_gwas[list(header)]
         .rename(
             columns={
                 header[0]: "chrom",
@@ -415,7 +525,6 @@ def read_ld(path: str) -> Array:
         GWAS summary statistics for correct fine-mapping results.
 
     """
-
     ld = pd.read_csv(path, sep="\t").replace([jnp.inf, -jnp.inf], jnp.nan)
 
     rows_to_drop = ld.index[ld.isna().any(axis=1)]
@@ -430,7 +539,7 @@ def read_ld(path: str) -> Array:
 # output functions
 def output_cs(
     result: List[infer.SushieResult],
-    meta_pip: Optional[List[Array]],
+    meta_pip: List[Array] | None,
     snps: pd.DataFrame,
     output: str,
     trait: str,
@@ -491,7 +600,7 @@ def output_cs(
 
 def output_weights(
     result: List[infer.SushieResult],
-    meta_pip: Optional[List[Array]],
+    meta_pip: List[Array] | None,
     snps: pd.DataFrame,
     output: str,
     trait: str,
@@ -513,7 +622,6 @@ def output_weights(
         :py:obj:`pd.DataFrame`: A data frame that outputs to the ``*weights.tsv`` file (:py:obj:`pd.DataFrame`).
 
     """
-
     n_pop = len(result[0].priors.resid_var)
     weights = copy.deepcopy(snps).assign(trait=trait, n_snps=snps.shape[0])
 
@@ -646,7 +754,6 @@ def output_her(
         :py:obj:`pd.DataFrame`: A data frame that outputs to the ``*her.tsv`` file (:py:obj:`pd.DataFrame`).
 
     """
-
     n_pop = len(data.geno)
 
     her_result = []
@@ -696,7 +803,6 @@ def output_corr(
         :py:obj:`pd.DataFrame`: A data frame that outputs to the ``*corr.tsv`` file (:py:obj:`pd.DataFrame`).
 
     """
-
     n_pop = len(result[0].priors.resid_var)
     raw_corr = result[0].posteriors.weighted_sum_covar
     n_l = len(raw_corr)
@@ -748,7 +854,6 @@ def output_cv(
         :py:obj:`pd.DataFrame`: A data frame that outputs to the ``*cv.tsv`` file (:py:obj:`pd.DataFrame`).
 
     """
-
     cv_r2 = (
         pd.DataFrame(
             data=cv_res,
@@ -784,5 +889,3 @@ def output_numpy(
 
     """
     jnp.save(f"{output}.all.results.npy", [snps, result])
-
-    return None

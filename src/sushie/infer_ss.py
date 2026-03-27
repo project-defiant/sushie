@@ -2,7 +2,6 @@ import math
 from typing import NamedTuple, Tuple
 
 import equinox as eqx
-
 import jax.numpy as jnp
 from jax import Array, lax
 from jax.typing import ArrayLike
