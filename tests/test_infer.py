@@ -1,14 +1,14 @@
 import pytest
 
+import jax
 import jax.numpy as jnp
 import jax.numpy.linalg as jnla
 import jax.random as rdm
 import jax.scipy.linalg as jsla
-from jax.config import config
 
 import sushie
 
-config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 
 @pytest.mark.parametrize("N,K", [(50, 2), (100, 1)])
