@@ -1,8 +1,73 @@
 [build-system]
-# AVOID CHANGING REQUIRES: IT WILL BE UPDATED BY PYSCAFFOLD!
-requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools_scm]
-# See configuration details in https://github.com/pypa/setuptools_scm
-version_scheme = "no-guess-dev"
+[project]
+name = "sushie"
+dynamic = ["version"]
+description = "SNP fine-mapping of molecular data across ancestries using SuShiE"
+readme = "README.md"
+license = { file = "LICENSE.txt" }
+authors = [
+    { name = "Zeyun Lu", email = "zeyun_lu@dfci.harvard.edu" },
+    { name = "Nicholas Mancuso", email = "Nicholas.Mancuso@med.usc.edu" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "jax",
+    "jaxlib",
+    "pandas",
+    "pandas-plink",
+    "equinox",
+    "scipy",
+    "glimix-core",
+    "bgen-reader",
+    "cyvcf2",
+]
+
+[project.optional-dependencies]
+testing = [
+    "setuptools",
+    "pytest",
+    "pytest-cov",
+]
+dev = [
+    "pre-commit",
+    "pymdown-extensions",
+    "pytest-accept",
+    "pytest-cov",
+    "sphinx>=5",
+    "sphinx-immaterial",
+]
+
+[project.urls]
+Homepage = "https://github.com/mancusolab/sushie"
+Source = "https://github.com/mancusolab/sushie"
+Tracker = "https://github.com/mancusolab/sushie/issues"
+
+[project.scripts]
+sushie = "sushie.cli:run_cli"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "sushie/_version.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["tests/", "data/", "docs/", "misc/"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["sushie"]
+
+[tool.pytest.ini_options]
+addopts = "--cov sushie --cov-report term-missing --verbose"
+norecursedirs = ["dist", "build", ".tox"]
+testpaths = ["tests"]
+
+[tool.mypy]
+allow_redefinition = true

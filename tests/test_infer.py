@@ -1,14 +1,14 @@
 import pytest
 
+import jax
 import jax.numpy as jnp
 import jax.numpy.linalg as jnla
 import jax.random as rdm
 import jax.scipy.linalg as jsla
-from jax.config import config
 
 import sushie
 
-config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 
 @pytest.mark.parametrize("N,K", [(50, 2), (100, 1)])
@@ -45,7 +45,7 @@ def test_infer_sushie_simple(N: int, K: int, seed: int = 0):
         ys.append(y[k, :])
 
     # this really is just sanity check that it doesn't crash...
-    res = sushie.infer.infer_sushie(Xs, ys, L=L)
+    res = sushie.infer.infer_sushie(Xs, ys, L=L, min_snps=L)
 
     assert res is not None
 
@@ -81,5 +81,5 @@ def test_infer_sushie(N: int, P: int, K: int, L: int, seed: int = 0):
         ys.append(y[k, :])
 
     # this really is just sanity check that it doesn't crash...
-    res = sushie.infer.infer_sushie(Xs, ys, L=L)
+    res = sushie.infer.infer_sushie(Xs, ys, L=L, min_snps=L)
     assert res is not None

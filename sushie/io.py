@@ -9,7 +9,6 @@ from jax import Array
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from pandas_plink import read_plink
-    from cyvcf2 import VCF
     from bgen_reader import open_bgen
     import jax.numpy as jnp
 
@@ -240,7 +239,7 @@ def read_vcf(path: str) -> Tuple[pd.DataFrame, pd.DataFrame, Array]:
 
     """
 
-    vcf = VCF(path, gts012=True)
+    vcf = __import__("cyvcf2").VCF(path, gts012=True)
     fam = pd.DataFrame(vcf.samples).rename(columns={0: "iid"})
     bim_list = []
     bed_list = []
