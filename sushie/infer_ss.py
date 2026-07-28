@@ -1,16 +1,19 @@
 import math
-from typing import NamedTuple, Tuple
+from typing import NamedTuple, Sequence, Tuple
 
 import equinox as eqx
+import pandas as pd
+from scipy.stats import norm
 
 import jax.numpy as jnp
 from jax import Array, lax
 from jax.typing import ArrayLike
 
-from . import infer, log, utils
+from . import infer, io, log, utils
 
 __all__ = [
     "infer_sushie_ss",
+    "prepare_sushie_ss_data",
 ]
 
 
@@ -21,6 +24,297 @@ class _LResult_ss(NamedTuple):
     posteriors: infer.Posterior
     prior_adjustor: infer._PriorAdjustor
     opt_v_func: infer._AbstractOptFunc
+
+
+def _allele_check(
+    baseA0: pd.Series,
+    baseA1: pd.Series,
+    compareA0: pd.Series,
+    compareA1: pd.Series,
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    correct = jnp.array(
+        ((baseA0 == compareA0) * 1) * ((baseA1 == compareA1) * 1), dtype=int
+    )
+    flipped = jnp.array(
+        ((baseA0 == compareA1) * 1) * ((baseA1 == compareA0) * 1), dtype=int
+    )
+    (correct_idx,) = jnp.where(correct == 1)
+    (flipped_idx,) = jnp.where(flipped == 1)
+    (wrong_idx,) = jnp.where((correct + flipped) == 0)
+
+    return correct_idx, flipped_idx, wrong_idx
+
+
+def prepare_sushie_ss_data(
+    gwas: Sequence[pd.DataFrame],
+    lds: Sequence[pd.DataFrame],
+    sample_size: Sequence[int],
+    pi: pd.DataFrame | None = None,
+    gwas_sig: float = 1.0,
+    gwas_sig_type: str = "at-least",
+    keep_ambiguous: bool = True,
+    ld_adjust: float = 0.0,
+) -> Tuple[pd.DataFrame, io.ssData]:
+    """Prepare LD-backed summary statistics for public ``infer_ss`` usage.
+
+    Args:
+        gwas: GWAS summary-statistic tables, one per ancestry, with
+            ``chrom``, ``snp``, ``pos``, ``a0``, ``a1``, and ``z`` columns.
+        lds: LD matrices, one per ancestry, whose columns are SNP identifiers.
+        sample_size: Sample size for each ancestry.
+        pi: Prior weights keyed by ``snp`` with an optional ``pi`` column.
+        gwas_sig: P-value threshold used to keep variants.
+        gwas_sig_type: Whether variants must be significant in ``at-least`` one ancestry
+            or ``all`` ancestries.
+        keep_ambiguous: Whether to keep ambiguous SNPs (A/T, T/A, C/G, G/C).
+        ld_adjust: Diagonal jitter applied to each LD matrix after validation.
+
+    Returns:
+        SNP metadata and the aligned summary-stat dataset ready for ``infer_sushie_ss``.
+    """
+
+    n_pop = len(gwas)
+    if n_pop == 0:
+        raise ValueError("At least one ancestry is required for summary-stat preparation.")
+
+    if len(lds) != n_pop:
+        raise ValueError(
+            f"The number of LD matrices ({len(lds)}) does not match the number of ancestries ({n_pop})."
+        )
+
+    ns = jnp.array(sample_size)
+    if ns.shape[0] != n_pop:
+        raise ValueError(
+            f"The number of sample sizes ({ns.shape[0]}) does not match the number of ancestries ({n_pop})."
+        )
+
+    if jnp.any(ns <= 0):
+        raise ValueError("Sample sizes must all be positive values.")
+
+    pi = pd.DataFrame() if pi is None else pi.copy()
+
+    gwas_list = []
+    ld_list = []
+    for idx in range(n_pop):
+        df_gwas = gwas[idx].rename(
+            columns={
+                "pos": f"pos_{idx + 1}",
+                "a0": f"a0_{idx + 1}",
+                "a1": f"a1_{idx + 1}",
+                "z": f"z_{idx + 1}",
+            }
+        )
+        df_ld = lds[idx].copy()
+
+        if df_ld.shape[0] == 0:
+            raise ValueError(
+                f"Ancestry {idx + 1}: No SNPs in the LD data. Check the source."
+            )
+
+        if df_ld.shape[1] == 0:
+            raise ValueError(
+                f"Ancestry {idx + 1}: The LD matrix has no columns. Check the source."
+            )
+
+        if df_ld.shape[0] != df_ld.shape[1]:
+            raise ValueError(
+                f"Ancestry {idx + 1}: The LD matrix is not square. Check the source."
+            )
+
+        df_ld = df_ld.round(4)
+        df_ld.index = df_ld.columns
+
+        if not jnp.all(jnp.linalg.eigvals(df_ld.values) >= -1e-8):
+            raise ValueError(
+                f"Ancestry {idx + 1}: The LD matrix is not positive semi-definite. Check the source."
+            )
+
+        if not jnp.allclose(jnp.diag(df_ld.values), jnp.ones(df_ld.shape[0]), atol=1e-4):
+            raise ValueError(
+                f"Ancestry {idx + 1}: The LD matrix diagonal is not all 1. Check the source."
+            )
+
+        if df_gwas["snp"].isin(df_ld.columns).sum() == 0:
+            raise ValueError(
+                f"Ancestry {idx + 1}: No common SNPs between GWAS and LD data. Check the source."
+            )
+
+        df_ld.values[jnp.diag_indices_from(df_ld.values)] += ld_adjust
+
+        gwas_list.append(df_gwas)
+        ld_list.append(df_ld)
+
+    if n_pop > 1:
+        log.logger.debug("Find common GWAS SNPs across ancestries.")
+        snps_gwas = (
+            gwas_list[0]
+            .merge(gwas_list[1], how="inner", on=["chrom", "snp"])
+            .reset_index(drop=True)
+        )
+        for idx in range(n_pop - 2):
+            snps_gwas = snps_gwas.merge(
+                gwas_list[idx + 2], how="inner", on=["chrom", "snp"]
+            ).reset_index(drop=True)
+
+        if snps_gwas.shape[0] == 0:
+            raise ValueError(
+                "GWAS data have no common SNPs across ancestries. Check the source."
+            )
+
+        for idx in range(n_pop):
+            snps_num_diff = gwas_list[idx].shape[0] - snps_gwas.shape[0]
+            log.logger.debug(
+                f"Ancestry{idx + 1} has {snps_num_diff} independent SNPs and {snps_gwas.shape[0]}"
+                + " common SNPs. Inference only performs on common SNPs.",
+            )
+
+        snps_ld = pd.DataFrame({"snps": ld_list[0].columns})
+        snps_ld = snps_ld[snps_ld.snps.isin(ld_list[1].columns)]
+        for idx in range(n_pop - 2):
+            snps_ld = snps_ld[snps_ld.snps.isin(ld_list[idx + 2].columns)]
+
+        if snps_ld.shape[0] == 0:
+            raise ValueError(
+                "LD data have no common SNPs across ancestries. Check the source."
+            )
+
+        for idx in range(n_pop):
+            snps_num_diff = ld_list[idx].shape[0] - snps_ld.shape[0]
+            log.logger.debug(
+                f"Ancestry{idx + 1} has {snps_num_diff} independent SNPs and {snps_ld.shape[0]}"
+                + " common SNPs. Inference only performs on common SNPs.",
+            )
+    else:
+        snps_gwas = gwas_list[0].reset_index(drop=True)
+        snps_ld = pd.DataFrame({"snps": ld_list[0].columns})
+
+    z_threshold = norm.ppf(1 - gwas_sig / 2)
+    z_cols = snps_gwas.filter(regex="^z_")
+    old_num = snps_gwas.shape[0]
+    if gwas_sig_type == "at-least":
+        sel_snps = z_cols.abs().gt(z_threshold).any(axis=1)
+    else:
+        sel_snps = z_cols.abs().gt(z_threshold).all(axis=1)
+
+    snps_gwas = snps_gwas[sel_snps].copy().reset_index(drop=True)
+    new_num = snps_gwas.shape[0]
+    log.logger.debug(
+        f"Drop {old_num - new_num} SNPs with GWAS P value less than {gwas_sig}"
+        + f" based on {gwas_sig_type} method."
+    )
+
+    if n_pop > 1:
+        log.logger.debug("Remove SNPs that do not have same alleles across ancestries.")
+        for idx in range(1, n_pop):
+            _, _, remove_idx = _allele_check(
+                snps_gwas["a0_1"].values,
+                snps_gwas["a1_1"].values,
+                snps_gwas[f"a0_{idx + 1}"].values,
+                snps_gwas[f"a1_{idx + 1}"].values,
+            )
+
+            if len(remove_idx) != 0:
+                snps_gwas = snps_gwas.drop(index=remove_idx).reset_index(drop=True)
+                log.logger.debug(
+                    f"Ancestry{idx + 1} GWAS has {len(remove_idx)} alleles that"
+                    + "couldn't match to ancestry 1 and couldn't be flipped. Will remove these SNPs."
+                )
+
+            if snps_gwas.shape[0] == 0:
+                raise ValueError(
+                    f"Ancestry {idx + 1} has none of correct or flippable SNPs matching to ancestry 1."
+                    + "Check the source.",
+                )
+
+    if not keep_ambiguous:
+        log.logger.debug("Remove ambiguous SNPs from GWAS data.")
+        ambiguous_snps = ["AT", "TA", "CG", "GC"]
+        if_ambig = (snps_gwas.a0_1 + snps_gwas.a1_1).isin(ambiguous_snps)
+        del_num = if_ambig.sum()
+        snps_gwas = snps_gwas[~if_ambig].reset_index(drop=True)
+
+        if snps_gwas.shape[0] == 0:
+            raise ValueError("All SNPs are ambiguous in GWAS data. Check the source.")
+
+        if del_num != 0:
+            log.logger.debug(f"Drop {del_num} ambiguous SNPs in GWAS data.")
+
+    if n_pop > 1:
+        log.logger.debug(
+            "Flip the alleles of subsequent ancestries to match those of the first ancestry."
+        )
+        for idx in range(1, n_pop):
+            _, tmp_flip_idx, _ = _allele_check(
+                snps_gwas["a0_1"].values,
+                snps_gwas["a1_1"].values,
+                snps_gwas[f"a0_{idx + 1}"].values,
+                snps_gwas[f"a1_{idx + 1}"].values,
+            )
+
+            if len(tmp_flip_idx) != 0:
+                log.logger.debug(
+                    f"Ancestry{idx + 1} has {len(tmp_flip_idx)} flipped alleles in GWAS from ancestry 1."
+                    + " Will flip these SNPs."
+                )
+                snps_gwas.loc[tmp_flip_idx, f"z_{idx + 1}"] *= -1
+
+            snps_gwas = snps_gwas.drop(
+                columns=[f"a0_{idx + 1}", f"a1_{idx + 1}", f"pos_{idx + 1}"]
+            )
+
+    snps_gwas = snps_gwas.rename(columns={"pos_1": "pos", "a0_1": "a0", "a1_1": "a1"})
+
+    overlap_snps = snps_gwas["snp"][snps_gwas["snp"].isin(snps_ld.snps)]
+    if overlap_snps.shape[0] == 0:
+        raise ValueError("No common SNPs between GWAS and LD data. Check the source.")
+
+    df_gwas = (
+        snps_gwas.set_index("snp", drop=False)
+        .loc[overlap_snps]
+        .reset_index(drop=True)
+    )
+
+    zs = []
+    aligned_lds = []
+    for idx in range(n_pop):
+        zs.append(jnp.array(df_gwas[f"z_{idx + 1}"].values))
+        tmp_ld = ld_list[idx].loc[overlap_snps, overlap_snps]
+        if (tmp_ld.values == tmp_ld.values.T).all():
+            aligned_lds.append(jnp.array(tmp_ld))
+        else:
+            raise ValueError(
+                f"Ancestry {idx + 1}: The LD matrix becomes asymmetric during QC. Contact devleoper."
+            )
+
+    snps = (
+        df_gwas[["chrom", "snp", "pos", "a0", "a1"]]
+        .reset_index(drop=True)
+        .reset_index(names="SNPIndex")
+        .copy()
+    )
+
+    if pi.shape[0] != 0:
+        snps = pd.merge(snps, pi, how="left", on="snp")
+        nan_count = snps["pi"].isna().sum()
+        if nan_count > 0:
+            log.logger.debug(
+                f"{nan_count} SNP(s) have missing prior weights. Will replace them with the mean value of the rest."
+            )
+        snps["pi"] = snps["pi"].fillna(snps["pi"].mean())
+        pi = jnp.array(snps["pi"].values)
+    else:
+        snps["pi"] = jnp.ones(snps.shape[0]) / float(snps.shape[0])
+        pi = None
+
+    regular_data = io.ssData(zs=zs, lds=aligned_lds, ns=ns[:, jnp.newaxis], pi=pi)
+
+    name_ancestry = "ancestry" if n_pop == 1 else "ancestries"
+    log.logger.info(
+        f"Prepare {snps.shape[0]} SNPs from {n_pop} {name_ancestry} after"
+        + " data cleaning. Specify --verbose for details.",
+    )
+
+    return snps, regular_data
 
 
 def infer_sushie_ss(
