@@ -42,3 +42,25 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  container:
+    name: Container smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: sushie:ci
+          build-args: SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUSHIE=0.0.0
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - run: docker run --rm sushie:ci --help
+      - run: docker run --rm --entrypoint '' sushie:ci sh -c 'command -v ps'
