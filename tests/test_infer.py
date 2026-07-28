@@ -160,3 +160,24 @@ def test_process_raw_ss_uses_only_variants_shared_by_all_studies_and_ld_panels(
         [[1.0, 0.2], [0.2, 1.0]],
         [[1.0, 0.3], [0.3, 1.0]],
     ]
+
+
+def test_prepare_sushie_ss_data_reports_empty_intersection_without_raising(
+    tmp_path: Path,
+) -> None:
+    gwas = pd.DataFrame(
+        [{"chrom": 1, "snp": "rs1", "pos": 101, "a1": "A", "a0": "G", "z": 2.0}]
+    )
+    ld = pd.DataFrame([[1.0]], columns=["rs1"])
+
+    outcome = sushie.infer_ss.prepare_sushie_ss_data_with_stats(
+        gwas=[gwas, gwas.assign(snp="rs2")],
+        lds=[ld, ld.rename(columns={"rs1": "rs2"})],
+        sample_size=[100, 120],
+    )
+
+    assert outcome.status == "EMPTY_INTERSECTION"
+    assert outcome.reason
+    assert outcome.final_variants == 0
+    assert outcome.snps is None
+    assert outcome.data is None

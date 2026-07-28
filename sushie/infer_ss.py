@@ -14,6 +14,7 @@ from . import infer, io, log, utils
 __all__ = [
     "infer_sushie_ss",
     "prepare_sushie_ss_data",
+    "prepare_sushie_ss_data_with_stats",
 ]
 
 
@@ -24,6 +25,19 @@ class _LResult_ss(NamedTuple):
     posteriors: infer.Posterior
     prior_adjustor: infer._PriorAdjustor
     opt_v_func: infer._AbstractOptFunc
+
+
+class PreparationOutcome(NamedTuple):
+    """Stats-bearing outcome of summary-statistic preparation."""
+
+    snps: pd.DataFrame | None
+    data: io.ssData | None
+    status: str
+    reason: str | None
+    input_variants: int
+    shared_variants: int
+    ld_valid_variants: int
+    final_variants: int
 
 
 def _allele_check(
@@ -315,6 +329,63 @@ def prepare_sushie_ss_data(
     )
 
     return snps, regular_data
+
+
+def prepare_sushie_ss_data_with_stats(
+    gwas: Sequence[pd.DataFrame],
+    lds: Sequence[pd.DataFrame],
+    sample_size: Sequence[int],
+    **kwargs: object,
+) -> PreparationOutcome:
+    """Prepare SuShiE inputs while returning non-usable inputs as statistics.
+
+    The strict intersection contract is intentionally a quality outcome rather
+    than an exception at this boundary. Callers can write ``status`` and
+    ``reason`` to their run statistics and skip inference without padding data.
+    """
+
+    input_variants = sum(len(frame) for frame in gwas)
+    shared_variants = 0
+    if gwas:
+        shared = set(gwas[0].get("snp", pd.Series(dtype=str)))
+        for frame in gwas[1:]:
+            shared &= set(frame.get("snp", pd.Series(dtype=str)))
+        shared_variants = len(shared)
+
+    ld_shared = None
+    if lds:
+        ld_shared = set(lds[0].columns)
+        for frame in lds[1:]:
+            ld_shared &= set(frame.columns)
+    ld_valid_variants = len(ld_shared or set())
+
+    try:
+        snps, data = prepare_sushie_ss_data(gwas, lds, sample_size, **kwargs)
+    except (TypeError, ValueError) as error:
+        status = "EMPTY_INTERSECTION" if shared_variants == 0 or ld_valid_variants == 0 else "INSUFFICIENT_VARIANTS"
+        return PreparationOutcome(
+            None,
+            None,
+            status,
+            str(error),
+            input_variants,
+            shared_variants,
+            ld_valid_variants,
+            0,
+        )
+
+    final_variants = len(snps)
+    status = "SUCCESS" if final_variants else "EMPTY_INTERSECTION"
+    return PreparationOutcome(
+        snps if final_variants else None,
+        data if final_variants else None,
+        status,
+        None if final_variants else "No variants remain after SuShiE preparation",
+        input_variants,
+        shared_variants,
+        ld_valid_variants,
+        final_variants,
+    )
 
 
 def infer_sushie_ss(
