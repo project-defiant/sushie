@@ -31,17 +31,21 @@ dependencies = [
 
 [project.optional-dependencies]
 testing = [
-    "setuptools",
+    "prek",
     "pytest",
     "pytest-cov",
+    "ruff",
+    "ty",
 ]
 dev = [
-    "pre-commit",
     "pymdown-extensions",
     "pytest-accept",
     "pytest-cov",
+    "prek",
+    "ruff",
     "sphinx>=5",
     "sphinx-immaterial",
+    "ty",
 ]
 
 [project.urls]

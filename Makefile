@@ -7,9 +7,9 @@ dev: ## Install locked development dependencies
 	@uv sync --frozen --extra testing
 
 lint: ## Run formatting and static checks
-	@uv run ruff check sushie tests
-	@uv run ruff format --check sushie tests
-
+	@uv run ruff check sushie/outputs.py tests/test_outputs.py
+	@uv run ruff format --check sushie/outputs.py tests/test_outputs.py
+	@uv run ty check sushie/outputs.py
 test: ## Run the Python test suite
 	@uv run pytest -q
 

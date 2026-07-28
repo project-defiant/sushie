@@ -111,4 +111,4 @@ def study_locus_from_result(
             }
         )
 
-    return pd.DataFrame(rows, columns=STUDY_LOCUS_COLUMNS)
+    return pd.DataFrame(rows, columns=pd.Index(STUDY_LOCUS_COLUMNS))
