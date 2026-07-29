@@ -17,8 +17,22 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Run pre-commit hooks
-        run: uvx pre-commit run --all-files
+      - name: Install locked development environment
+        run: uv sync --frozen --extra testing
+
+      - name: Run prek hooks
+        run: uv run prek run --all-files
+
+      - name: Run type checks
+        run: >-
+          uv run ty check
+          sushie/anndata_output.py
+          sushie/models.py
+          sushie/outputs.py
+          sushie/pipeline_cli.py
+          sushie/preparation.py
+          sushie/stats.py
+          --output-format=github
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -38,10 +52,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package with testing extras
-        run: uv sync --extra testing
+        run: uv sync --frozen --extra testing
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --frozen pytest
 
   container:
     name: Container smoke test

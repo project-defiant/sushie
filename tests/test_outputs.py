@@ -2,11 +2,14 @@ from types import SimpleNamespace
 
 import jax.numpy as jnp
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
 
-from sushie.outputs import study_locus_from_result
+from sushie.outputs import study_locus_from_result, write_study_locus
 
 
-def test_study_locus_output_uses_component_alpha_and_stable_lead_id() -> None:
+def test_study_locus_output_uses_component_alpha_and_stable_lead_id(tmp_path) -> None:
     result = SimpleNamespace(
         cs=pd.DataFrame(
             {
@@ -19,6 +22,8 @@ def test_study_locus_output_uses_component_alpha_and_stable_lead_id() -> None:
             }
         ),
         posteriors=SimpleNamespace(log_bf=jnp.array([[2.0, 1.0]])),
+        priors=SimpleNamespace(pi=jnp.array([0.5, 0.5])),
+        alphas=pd.DataFrame({"purity_l1": [0.8, 0.8]}),
     )
     variants = pd.DataFrame(
         {
@@ -26,6 +31,9 @@ def test_study_locus_output_uses_component_alpha_and_stable_lead_id() -> None:
             "chromosome": ["1", "1"],
             "position": [100, 110],
             "beta": [0.2, 0.1],
+            "zScore": [4.0, 2.0],
+            "pValueMantissa": [6.3342, 4.5500],
+            "pValueExponent": [-5, -2],
             "standardError": [0.05, 0.05],
         }
     )
@@ -43,25 +51,51 @@ def test_study_locus_output_uses_component_alpha_and_stable_lead_id() -> None:
 
     assert list(output.columns) == [
         "studyLocusId",
-        "studyId",
+        "studyType",
         "variantId",
         "chromosome",
         "position",
+        "region",
+        "studyId",
         "beta",
-        "sampleSize",
+        "zScore",
         "pValueMantissa",
         "pValueExponent",
         "effectAlleleFrequencyFromSource",
         "standardError",
+        "subStudyDescription",
         "qualityControls",
+        "finemappingMethod",
+        "credibleSetIndex",
+        "credibleSetlog10BF",
+        "purityMeanR2",
+        "purityMinR2",
         "locusStart",
         "locusEnd",
+        "sampleSize",
+        "ldSet",
         "locus",
+        "confidence",
+        "isTransQtl",
     ]
     assert len(output) == 1
     assert output.loc[0, "variantId"] == "1_100_A_G"
     assert output.loc[0, "locus"][0]["posteriorProbability"] == 0.8
-    assert output.loc[0, "locus"][0]["is95CredibleSet"] is False
+    assert output.loc[0, "locus"][0]["is95CredibleSet"] is True
     assert output.loc[0, "locus"][1]["is95CredibleSet"] is True
     assert output.loc[0, "locus"][0]["logBF"] == 2.0
-    assert output.loc[0, "studyLocusId"] == "d583d81ee1af2211371ede4c6528fc90"
+    assert output.loc[0, "finemappingMethod"] == "SuShiE"
+    assert output.loc[0, "credibleSetIndex"] == 0
+    assert output.loc[0, "purityMinR2"] == pytest.approx(0.64)
+    assert output.loc[0, "studyLocusId"] == "a2a17b81b0f2ebc561800cd67ce5c8c9"
+
+    path = tmp_path / "study_locus.parquet"
+    write_study_locus(output, path)
+    schema = pq.read_schema(path)
+    assert schema.field("sampleSize").type == pa.int32()
+    assert schema.field("effectAlleleFrequencyFromSource").type == pa.float32()
+    assert pa.types.is_list(schema.field("ldSet").type)
+    assert (
+        schema.field("locus").type.value_type.field("pValueMantissa").type
+        == pa.float32()
+    )

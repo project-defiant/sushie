@@ -51,6 +51,38 @@ documentation.
     pip install .
     ```
 
+## Pipeline interface
+
+The primary `sushie` command accepts the same per-locus application contract
+used by the fine-mapping pipeline:
+
+```bash
+sushie \
+  --fine-mapping-locus-set fine_mapping_locus_set.parquet \
+  --multi-ancestry-pairwise-ld multi_ancestry_pairwise_ld \
+  --study-metadata metadata.jsonl \
+  --run-id RUN_ID \
+  --fine-mapping-locus-set-id LOCUS_SET_ID \
+  --study-locus-output results/study_locus.parquet \
+  --extended-results-output results/fit.h5ad \
+  --stats-output results/stats.json
+```
+
+The metadata file contains one JSON object per study:
+
+```json
+{"studyId":"STUDY_A","ancestry":"eur","sampleSize":100000}
+```
+
+SuShiE uses only variants present in every study locus and represented in the
+LD data for every ancestry. A reportable fit produces a flat,
+Gentropy-compatible StudyLocus parquet file and an AnnData file containing the
+complete posterior arrays. Every invocation writes `stats.json`; empty,
+insufficient, or non-converged inputs write only that status file.
+
+All numerical options are available from `sushie --help`. The original
+file-oriented interface remains available as `sushie-legacy`.
+
 ## Get Started with Example
 
 SuShiE software is very easy to use:
@@ -58,13 +90,13 @@ SuShiE software is very easy to use:
 For fine-mapping using individual-level data:
 ``` bash
 cd ./data/
-sushie finemap --pheno EUR.pheno AFR.pheno --vcf vcf/EUR.vcf vcf/AFR.vcf --covar EUR.covar AFR.covar --output ./test_result
+sushie-legacy finemap --pheno EUR.pheno AFR.pheno --vcf vcf/EUR.vcf vcf/AFR.vcf --covar EUR.covar AFR.covar --output ./test_result
 ```
 
 For fine-mapping using summary-level data:
 ``` bash
 cd ./data/
-sushie finemap --summary --gwas EUR.gwas AFR.gwas --vcf vcf/EUR.vcf vcf/AFR.vcf --sample-size 489 639 --gwas-header chrom snp pos a1 a0 z --output ./test_result
+sushie-legacy finemap --summary --gwas EUR.gwas AFR.gwas --vcf vcf/EUR.vcf vcf/AFR.vcf --sample-size 489 639 --gwas-header chrom snp pos a1 a0 z --output ./test_result
 ```
 
 It can perform:

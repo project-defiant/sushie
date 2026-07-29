@@ -18,11 +18,16 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "anndata>=0.11",
     "jax",
     "jaxlib",
     "pandas",
     "pandas-plink",
+    "polars>=1",
+    "pyarrow>=14",
     "pydantic>=2",
+    "loguru>=0.7",
+    "typer>=0.16",
     "equinox",
     "scipy",
     "glimix-core",
@@ -55,7 +60,8 @@ Source = "https://github.com/mancusolab/sushie"
 Tracker = "https://github.com/mancusolab/sushie/issues"
 
 [project.scripts]
-sushie = "sushie.cli:run_cli"
+sushie = "sushie.pipeline_cli:app"
+sushie-legacy = "sushie.cli:run_cli"
 
 [tool.hatch.version]
 source = "vcs"

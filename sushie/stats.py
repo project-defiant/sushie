@@ -55,12 +55,16 @@ def stats_from_preparation(
 
 
 def stats_from_result(
-    result: Any, *, run_id: str, fine_mapping_locus_set_id: str
+    result: Any,
+    *,
+    run_id: str,
+    fine_mapping_locus_set_id: str,
+    min_tol: float = 1e-4,
 ) -> SuShiEStats:
     """Summarize a reportable or non-converged SuShiE result."""
 
     log_bf = np.asarray(result.posteriors.log_bf)
-    converged = bool(result.elbo_increase)
+    converged = result_converged(result, min_tol)
     return SuShiEStats(
         runId=run_id,
         fineMappingLocusSetId=fine_mapping_locus_set_id,
@@ -72,8 +76,22 @@ def stats_from_result(
     )
 
 
+def result_converged(result: Any, min_tol: float) -> bool:
+    """Return whether the final monotone ELBO update met the tolerance."""
+
+    if not bool(result.elbo_increase):
+        return False
+    elbo = np.asarray(result.elbo, dtype=float).reshape(-1)
+    if len(elbo) < 3:
+        return False
+    delta = elbo[-1] - elbo[-2]
+    return bool(np.isfinite(delta) and abs(delta) < min_tol)
+
+
 def write_stats(output: Path, stats: SuShiEStats) -> None:
     """Write one deterministic JSON status record."""
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(stats.model_dump(exclude_none=True), sort_keys=True) + "\n")
+    output.write_text(
+        json.dumps(stats.model_dump(exclude_none=True), sort_keys=True) + "\n"
+    )
