@@ -2168,6 +2168,7 @@ dependencies = [
     { name = "jaxlib", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
     { name = "pandas-plink" },
+    { name = "pydantic" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
@@ -2205,6 +2206,7 @@ requires-dist = [
     { name = "pandas-plink" },
     { name = "prek", marker = "extra == 'dev'" },
     { name = "prek", marker = "extra == 'testing'" },
+    { name = "pydantic", specifier = ">=2" },
     { name = "pymdown-extensions", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'testing'" },
     { name = "pytest-accept", marker = "extra == 'dev'" },

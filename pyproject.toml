@@ -22,6 +22,7 @@ dependencies = [
     "jaxlib",
     "pandas",
     "pandas-plink",
+    "pydantic>=2",
     "equinox",
     "scipy",
     "glimix-core",
