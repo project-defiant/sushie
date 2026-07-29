@@ -1,9 +1,21 @@
-[![Documentation-webpage](https://img.shields.io/badge/Docs-Available-brightgreen)](https://mancusolab.github.io/sushie/)
+# SuShiE🍣
+
+> [!IMPORTANT]
+> **Open Targets fork.** This repository is maintained by
+> [Open Targets](https://www.opentargets.org/) for integration with the
+> [`opentargets/nf-fine-mapping`](https://github.com/opentargets/nf-fine-mapping)
+> pipeline. It adds the pipeline-facing CLI, validated Gentropy-compatible
+> schemas, machine-readable status, lossless extended-result outputs,
+> reproducible packaging, containers, and CI. The scientific method and core
+> implementation originate from the canonical
+> [`mancusolab/sushie`](https://github.com/mancusolab/sushie) project. This fork
+> is not the canonical upstream distribution; please retain the original
+> attribution and citation when using it.
+
+[![Documentation-webpage](https://img.shields.io/badge/Upstream_Docs-Available-brightgreen)](https://mancusolab.github.io/sushie/)
 [![Github](https://img.shields.io/github/stars/mancusolab/sushie?style=social)](https://github.com/mancusolab/sushie)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Project generated with PyScaffold](https://img.shields.io/badge/-PyScaffold-005CA0?logo=pyscaffold)](https://pyscaffold.org/)
-
-# SuShiE🍣
 
 SuShiE (Sum of Shared Single Effect) is a Python package for multiancestry SNP fine-mapping, estimating effect size correlations across ancestries, and computing ancestry-specific prediction weights using either individual-level or summary-level data for molecular or complex traits.
 
@@ -29,6 +41,18 @@ documentation.
   | [**Other Software**](#other-software)
 
 ## Installation
+
+For the Open Targets fork and its pipeline-facing interface, install the locked
+environment from this repository:
+
+```bash
+uv sync --frozen
+uv run sushie --help
+```
+
+The conda and `pip` instructions below describe the canonical upstream
+distribution. Its original interface remains available in this fork as
+`sushie-legacy`.
 
 1. **Before installation**, we *highly* recommend to create a new environment using [conda](https://docs.conda.io/en/latest/) so that it will not affect the software versions of the other projects. For example, use following codes:
 
