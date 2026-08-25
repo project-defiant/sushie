@@ -88,7 +88,7 @@ def test_write_anndata_preserves_posteriors_and_provenance(tmp_path) -> None:
     assert fit.uns["fineMappingLocusSetId"] == "LOCUS_A"
     assert fit.uns["studyIds"].tolist() == ["STUDY_A", "STUDY_B"]
     assert fit.uns["methodParameters"]["rho"] == 0.1
-    assert fit.uns["converged"] is True
+    assert fit.uns["converged"]
     assert fit.uns["credibleSets"].shape == (2, 4)
     assert fit.uns["priorEffectCovariance"].shape == (2, 2)
     assert fit.var["priorProbability"].tolist() == [0.5, 0.5]
