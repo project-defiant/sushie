@@ -41,6 +41,8 @@ jobs:
                   context: .
                   platforms: linux/amd64,linux/arm64
                   push: true
+                  provenance: false
+                  sbom: false
                   build-args: |
                       SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUSHIE=0.0.0+g${{ github.sha }}
                   tags: |
