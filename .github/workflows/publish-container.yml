@@ -46,6 +46,7 @@ jobs:
                   build-args: |
                       SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUSHIE=0.0.0+g${{ github.sha }}
                   tags: |
+                      ghcr.io/${{ github.repository }}/sushie:latest
                       ghcr.io/${{ github.repository }}/sushie:${{ github.sha }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
@@ -55,4 +56,3 @@ jobs:
               with:
                   subject-name: ghcr.io/${{ github.repository }}/sushie
                   subject-digest: ${{ steps.push.outputs.digest }}
-                  push-to-registry: true
