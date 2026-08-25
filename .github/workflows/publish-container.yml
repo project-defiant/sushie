@@ -3,11 +3,6 @@ name: Build and Push Sushie Docker Image
 
 on:
     workflow_dispatch:
-        inputs:
-            version:
-                description: Image version, for example v1.0.0
-                required: true
-                type: string
 
 jobs:
     build-and-push:
@@ -47,10 +42,9 @@ jobs:
                   platforms: linux/amd64,linux/arm64
                   push: true
                   build-args: |
-                      SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUSHIE=${{ inputs.version }}
+                      SETUPTOOLS_SCM_PRETEND_VERSION_FOR_SUSHIE=${{ github.sha }}
                   tags: |
-                      ghcr.io/${{ github.repository }}/sushie:latest
-                      ghcr.io/${{ github.repository }}/sushie:${{ inputs.version }}
+                      ghcr.io/${{ github.repository }}/sushie:${{ github.sha }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
 
